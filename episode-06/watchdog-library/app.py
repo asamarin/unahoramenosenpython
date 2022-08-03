@@ -1,16 +1,19 @@
 import uuid
 import json
+from html import escape
+from pathlib import Path
 
 from flask import Flask
 from flask import redirect
 from flask import request
-
+from flask import render_template
 
 app = Flask(__name__)
 
 
 @app.route("/")
 def index():
+    return render_template('index.html', name=name)
     return "\n".join([
         '<html>',
         '<head>',
@@ -22,6 +25,7 @@ def index():
         '  color: #33FF33;',
         '  font-weight:bolder;',
         '}',
+        'b { color: white; }',
         '</style>'
         '<body>',
         '<h1>Deja tu mensaje</h1>',
@@ -33,6 +37,7 @@ def index():
         '<p></p>',
         '<input type="SUBMIT" name="ok" value="Enviar mensaje">',
         '<form>',
+        as_messages_list(),
         '</html>',
     ])
 
@@ -43,10 +48,35 @@ def post_message():
     message = request.form['message']
     if message:
         filename = f'{uuid.uuid4().hex}.json'
-        with open(filename, 'w') as fout:
+        with open(filename, 'w', encoding='utf-8') as fout:
             json.dump({
                 "name": name or "Anonymous",
                 "message": message,
                 }, fout
             )
     return redirect("/")
+
+
+def get_all_messages():
+    all_files = sorted(
+        Path('.').iterdir(),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True
+    )
+    for filename in all_files:
+        if filename.name.endswith('.json'):
+            with open(filename, encoding="utf-8") as fin:
+                yield json.load(fin)
+
+
+def as_messages_list():
+    buff = [
+        format('<p><b>{name}</b> says: <tt><b>{message}</b></tt></p>'.format(
+            name=escape(msg['name']),
+            message=escape(msg['message'])
+        ))
+        for msg in get_all_messages()
+    ]
+    return "\n".join(buff)
+
+
